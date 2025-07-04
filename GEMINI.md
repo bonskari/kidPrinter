@@ -6,7 +6,7 @@ This `GEMINI.md` file provides context and preferences for the Gemini AI agent w
 
 *   **Language:** Finnish for voice recognition and prompts.
 *   **Voice Recognition:** Prefer a local, lightweight LLM for Finnish speech-to-text, suitable for Raspberry Pi.
-*   **Content Safety:** Prioritize kid-friendly content. Initial approach will be a curated local database of images.
+*   **Content Safety:** Prioritize kid-friendly content.
 *   **Asset Location:** All project assets (images, audio files, etc.) should be placed in the `assets/` directory, with subdirectories for organization (e.g., `assets/images/`, `assets/audio/`).
 *   **Code Style:** Adhere to standard Python formatting (e.g., Black, Flake8).
 *   **Commit Messages:** Aim for clear, concise, and descriptive commit messages.
@@ -22,6 +22,6 @@ This `GEMINI.md` file provides context and preferences for the Gemini AI agent w
 ## Current Development Focus:
 
 *   Implementing local Finnish voice recognition.
-*   Setting up the curated image database.
+
 *   Integrating with printer control.
 *   Developing the daily print limit and feedback system.

@@ -11,5 +11,9 @@
     "content_safety": {
         "enabled": true,
         "filter_level": "strict"
+    },
+    "gemini": {
+        "api_key": "",
+        "model": "gemini-1.5-flash"
     }
 }

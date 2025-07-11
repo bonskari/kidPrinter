@@ -14,15 +14,25 @@ import tempfile
 from pathlib import Path
 import speech_recognition as sr
 import pyttsx3
+import google.generativeai as genai
+from dotenv import load_dotenv
 
 class KidPrinter:
     """Main application class for Kid Printer"""
     
     def __init__(self):
         """Initialize the Kid Printer application"""
+        # Load environment variables from .env file
+        env_path = Path(__file__).parent.parent / '.env'
+        load_dotenv(env_path)
+        
         self.config = self.load_config()
         self.recognizer = sr.Recognizer()
+        self.recognizer.energy_threshold = 200  # Optimized threshold from testing
         self.daily_print_count = 0
+        
+        # Initialize Gemini AI
+        self.setup_gemini()
         
         # Try to initialize TTS, fallback to Google TTS if not available
         try:
@@ -46,8 +56,41 @@ class KidPrinter:
             return {
                 "voice_recognition": {"language": "fi-FI", "timeout": 10},
                 "printer": {"daily_print_limit": 5, "max_pages_per_print": 3},
-                "content_safety": {"enabled": True, "filter_level": "strict"}
+                "content_safety": {"enabled": True, "filter_level": "strict"},
+                "gemini": {"api_key": "", "model": "gemini-1.5-flash"}
             }
+    
+    def setup_gemini(self):
+        """Setup Google Gemini AI"""
+        try:
+            # Try to get API key from environment variable first
+            api_key = os.getenv('GEMINI_API_KEY') or self.config.get("gemini", {}).get("api_key")
+            
+            if not api_key:
+                print("⚠️  Gemini API key not found. Please set GEMINI_API_KEY environment variable")
+                print("⚠️  or add it to config/settings.json")
+                self.gemini_enabled = False
+                return
+            
+            genai.configure(api_key=api_key)
+            self.gemini_model = genai.GenerativeModel(
+                model_name=self.config.get("gemini", {}).get("model", "gemini-1.5-flash"),
+                system_instruction="""You are a helpful AI assistant for a kid-friendly printer. 
+                You should:
+                - Respond in Finnish (suomi)
+                - Be friendly and encouraging to children
+                - Keep responses short and simple
+                - When asked to print something, confirm what to print
+                - Always prioritize child safety
+                - If unsure about content appropriateness, ask for clarification
+                - Be enthusiastic about creativity and learning"""
+            )
+            self.gemini_enabled = True
+            print("✅ Gemini AI initialized successfully")
+            
+        except Exception as e:
+            print(f"⚠️  Failed to initialize Gemini: {e}")
+            self.gemini_enabled = False
     
     def setup_voice_settings(self):
         """Setup text-to-speech voice settings"""
@@ -203,6 +246,33 @@ class KidPrinter:
             print(f"❌ Speech recognition error: {e}")
             return None
             
+    def get_ai_response(self, user_input):
+        """Get AI response from Gemini"""
+        if not self.gemini_enabled:
+            return "Anteeksi, en voi keskustella juuri nyt. Yritä myöhemmin uudelleen."
+        
+        try:
+            # Add context about print functionality
+            context_prompt = f"""
+            User said: "{user_input}"
+            
+            This is a kid-friendly printer system. If the user wants to print something:
+            1. Check if it's appropriate for children
+            2. Confirm what they want to print
+            3. Be encouraging and helpful
+            
+            Current daily print count: {self.daily_print_count}/{self.config['printer']['daily_print_limit']}
+            
+            Respond in Finnish, be friendly and encouraging.
+            """
+            
+            response = self.gemini_model.generate_content(context_prompt)
+            return response.text
+            
+        except Exception as e:
+            print(f"⚠️  Gemini error: {e}")
+            return "Anteeksi, en ymmärrä juuri nyt. Voitko toistaa?"
+    
     def check_daily_limit(self):
         """Check if daily print limit has been reached"""
         limit = self.config["printer"]["daily_print_limit"]
@@ -235,7 +305,7 @@ class KidPrinter:
         
     def run(self):
         """Main application loop"""
-        self.speak("Hei! Olen tulostinrobotti. Sano mitä haluat tulostaa!")
+        self.speak("Hei! Olen tulostinrobotti. Voin tulostaa hauskoja asioita! Mitä haluat tehdä?")
         
         while True:
             try:
@@ -247,13 +317,31 @@ class KidPrinter:
                     continue
                 elif speech_text is None:
                     print("❓ Could not understand speech, trying again...")
+                    self.speak("En kuullut sinua. Yritä uudelleen!")
                     continue
+                
+                print(f"👂 User said: {speech_text}")
+                
+                # Get AI response first
+                ai_response = self.get_ai_response(speech_text)
+                print(f"🤖 AI response: {ai_response}")
+                
+                # Check if this is a print request
+                print_keywords = ['tulosta', 'print', 'printtaa', 'kirjoita']
+                is_print_request = any(keyword in speech_text.lower() for keyword in print_keywords)
+                
+                if is_print_request:
+                    if not self.check_daily_limit():
+                        self.speak("Pahoillani, päivän tulostusmäärä on täynnä! Yritä huomenna uudelleen.")
+                        continue
                     
-                # Process the speech
-                if self.process_print_request(speech_text):
-                    self.speak("Tulostus valmis!")
+                    # TODO: Implement actual printing logic
+                    print(f"📄 Print request: {speech_text}")
+                    self.daily_print_count += 1
+                    self.speak(f"Tulostus aloitettu! {ai_response}")
                 else:
-                    self.speak("En ymmärrä. Sano 'tulosta' ja sitten mitä haluat tulostaa.")
+                    # Regular conversation
+                    self.speak(ai_response)
                     
             except KeyboardInterrupt:
                 print("\n👋 Shutting down Kid Printer...")
@@ -261,6 +349,7 @@ class KidPrinter:
                 break
             except Exception as e:
                 print(f"❌ Error: {e}")
+                self.speak("Jotain meni pieleen. Yritetään uudelleen!")
                 time.sleep(1)
 
 def main():

@@ -1,0 +1,36 @@
+# API Keys and secrets
+.env
+*.env
+config/secrets.json
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Temporary files
+*.tmp
+*.wav
+*.mp3
+/tmp/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Audio test files
+mic_test_*.wav
+listening_beep.wav

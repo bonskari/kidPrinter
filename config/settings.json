@@ -1,0 +1,15 @@
+{
+    "printer": {
+        "daily_print_limit": 5,
+        "max_pages_per_print": 3
+    },
+    "voice_recognition": {
+        "language": "fi-FI",
+        "model": "local",
+        "timeout": 10
+    },
+    "content_safety": {
+        "enabled": true,
+        "filter_level": "strict"
+    }
+}

@@ -18,6 +18,7 @@ This `GEMINI.md` file provides context and preferences for the Gemini AI agent w
     *   `assets/images/`: Curated kid-friendly images.
     *   `assets/audio/`: Audio prompts and feedback.
 *   `config/`: Configuration files (e.g., print limits, LLM settings).
+*   `tests/`: Dedicated directory for all test scripts.
 
 ## Current Development Focus:
 
@@ -25,3 +26,16 @@ This `GEMINI.md` file provides context and preferences for the Gemini AI agent w
 
 *   Integrating with printer control.
 *   Developing the daily print limit and feedback system.
+
+## Testing Guidelines:
+
+*   **Test Location:** All test scripts should reside in the `tests/` directory.
+*   **User Confirmation:** When performing tests that involve audio playback or other sensory outputs, always include clear prompts for user confirmation to verify the output.
+*   **Isolation:** Strive to create isolated tests that focus on a single piece of functionality to simplify debugging.
+*   **Cleanup:** Ensure test scripts clean up any temporary files or resources they create.
+*   **No User Input in Python Files:** Never include `input()` calls or other direct user input mechanisms within Python test scripts. All user interaction should occur through the CLI agent.
+
+## Audio Configuration:
+
+*   **Playback Device:** `hw:2,0` (AUREON XFIRE8.0 HD) has been confirmed to work for audio playback using `mpg123`.
+*   **Working Playback Example:** The `tests/playback_test.py` script demonstrates a working audio playback setup.

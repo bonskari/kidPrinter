@@ -138,7 +138,7 @@ class KidPrinter:
                 # Play MP3 through ROG Hive speakers using mpg123
                 try:
                     # Use mpg123 to play directly to hw:2,0 (ROG Hive speakers)
-                    subprocess.run(['mpg123', '-a', 'hw:2,0', tmp_file.name], 
+                    subprocess.run(['mpg123', '-a', 'hw:1,0', tmp_file.name], 
                                  capture_output=True, timeout=15)
                     
                 except subprocess.TimeoutExpired:
@@ -197,7 +197,7 @@ class KidPrinter:
                     wav_file.writeframes(sample.to_bytes(2, byteorder='little', signed=True))  # Duplicate for stereo
             
             # Play the beep through speakers
-            subprocess.run(["aplay", "-D", "hw:2,0", beep_file], capture_output=True, timeout=3)
+            subprocess.run(["aplay", "-D", "hw:1,0", beep_file], capture_output=True, timeout=3)
             
             # Clean up
             os.unlink(beep_file)

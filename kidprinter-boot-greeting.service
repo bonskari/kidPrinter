@@ -1,0 +1,17 @@
+[Unit]
+Description=KidPrinter Boot Greeting for Juuso
+After=sound.target pulseaudio.service
+Wants=sound.target
+
+[Service]
+Type=oneshot
+User=khadas
+Group=khadas
+WorkingDirectory=/home/khadas/kidprinter
+ExecStart=/usr/bin/python3 /home/khadas/kidprinter/boot_greeting.py
+Environment=HOME=/home/khadas
+Environment=XDG_RUNTIME_DIR=/run/user/1000
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

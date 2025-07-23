@@ -1,45 +1,34 @@
-#!/usr/bin/env python3
-"""
-Boot greeting script for Juuso's KidPrinter
-Plays a Finnish greeting when the OS boots up
-"""
-
-import subprocess
-import tempfile
 import os
-import time
+import subprocess
+import gtts
 
-def play_boot_greeting():
-    """Play Finnish boot greeting for Juuso using Google TTS"""
+BOOT_GREETING_TEXT = "Tulostinrobotti on valmiina toimintaan."
+AUDIO_FILE_PATH = os.path.join(os.path.dirname(__file__), 'assets', 'audio', 'boot_greeting.mp3')
+
+def create_tts_audio(text, lang='fi'):
+    """Creates an MP3 file from text using gTTS."""
     try:
-        from gtts import gTTS
-        
-        # Finnish greeting for Juuso
-        greeting = "Hei Juuso! Tulostinrobottisi on nyt käynnistynyt ja valmis toimimaan!"
-        
-        print(f"Playing boot greeting: {greeting}")
-        
-        # Create TTS object
-        tts = gTTS(text=greeting, lang='fi', slow=False)
-        
-        # Save to temporary file
-        with tempfile.NamedTemporaryFile(suffix='.mp3', delete=False) as tmp_file:
-            tts.save(tmp_file.name)
-            
-            # Convert to WAV and play through ROG Hive speakers
-            wav_file = tmp_file.name.replace('.mp3', '.wav')
-            subprocess.run(['ffmpeg', '-i', tmp_file.name, '-acodec', 'pcm_s16le', 
-                          '-ar', '44100', wav_file], capture_output=True, check=True)
-            subprocess.run(['aplay', '-D', 'hw:2,0', wav_file], check=True)
-            os.unlink(wav_file)
-            
-            # Cleanup
-            os.unlink(tmp_file.name)
-            
+        tts = gtts.gTTS(text=text, lang=lang, slow=False)
+        tts.save(AUDIO_FILE_PATH)
+        print(f"Generated TTS audio to {AUDIO_FILE_PATH}")
+        return True
     except Exception as e:
-        print(f"Error playing boot greeting: {e}")
+        print(f"❌ TTS creation failed: {e}")
+        return False
+
+def play_greeting():
+    if not os.path.exists(AUDIO_FILE_PATH):
+        print("Boot greeting audio not found. Generating...")
+        if not create_tts_audio(BOOT_GREETING_TEXT, lang='fi'):
+            print("Failed to generate boot greeting audio. Aborting playback.")
+            return
+
+    try:
+        subprocess.run(['mpg123', '-a', 'kidprinter_playback', AUDIO_FILE_PATH], check=True)
+    except FileNotFoundError:
+        print("Error: mpg123 not found. Please install it.")
+    except subprocess.CalledProcessError as e:
+        print(f"Error playing audio: {e}")
 
 if __name__ == "__main__":
-    # Small delay to ensure audio system is ready
-    time.sleep(3)
-    play_boot_greeting()
+    play_greeting()

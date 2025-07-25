@@ -1,6 +1,10 @@
 # Project-level configuration.
 cmake_minimum_required(VERSION 3.14)
+
 project(flutter_app LANGUAGES CXX)
+
+# Manually add ATL include path for MSVC (fixes 'atlbase.h' not found)
+include_directories("C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.36.32532/atlmfc/include")
 
 # The name of the executable created for the application. Change this to change
 # the on-disk name of your application.

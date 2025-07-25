@@ -1,8 +1,21 @@
 import 'package:flutter/material.dart';
+import 'dart:io' show Platform;
+import 'package:wakelock_plus/wakelock_plus.dart';
 import 'main_page.dart';
+import 'config.dart';
+import 'gemini_service.dart';
+import 'package:provider/provider.dart';
 
 void main() {
-  runApp(const MyApp());
+  if (Platform.isAndroid) {
+    WakelockPlus.enable();
+  }
+  runApp(
+    ChangeNotifierProvider(
+      create: (_) => GeminiService(geminiApiKey),
+      child: const MyApp(),
+    ),
+  );
 }
 
 class MyApp extends StatelessWidget {

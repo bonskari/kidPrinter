@@ -1,0 +1,7 @@
+speech-recognition==3.10.0
+pyttsx3==2.90
+pyaudio==0.2.11
+CUPS-pycups==2.0.1
+pygame==2.5.2
+requests==2.31.0
+python-dotenv==1.0.0

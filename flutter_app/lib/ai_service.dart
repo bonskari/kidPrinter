@@ -1,10 +1,12 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart';
+import 'config.dart';
 
 class AIService extends ChangeNotifier {
   bool get awaitingImageDescription => _awaitingImageDescription;
   bool _cancelRequested = false;
+  int _currentTokenIndex = 0;
 
   /// Generate a perfected coloring book image using Stable Diffusion XL (Hugging Face)
   Future<String?> generateColoringBookImage({
@@ -16,70 +18,76 @@ class AIService extends ChangeNotifier {
     _images.clear();
     _loading = true;
     notifyListeners();
-    try {
-      final prompt =
-          "black and white line art coloring book page of $subject, "
-          "full body visible, pure line drawing only, thick black outlines on pure white background, "
-          "NO SHADING, NO FILLED AREAS, NO GRAY, empty areas inside lines, outline only, "
-          "kids coloring book style, simple cartoon, friendly expression, complete character visible, "
-          "NO BACKGROUND, plain white background, character only, isolated character, a few pixels of white margin around the character, character fully visible and centered, do not crop, do not overflow, do not touch the edges, hands in fists";
+    final prompt =
+        "black and white line art coloring book page of $subject, "
+        "full body visible, pure line drawing only, thick black outlines on pure white background, "
+        "NO SHADING, NO FILLED AREAS, NO GRAY, empty areas inside lines, outline only, "
+        "kids coloring book style, simple cartoon, friendly expression, complete character visible, "
+        "NO BACKGROUND, plain white background, character only, isolated character, a few pixels of white margin around the character, character fully visible and centered, do not crop, do not overflow, do not touch the edges, hands in fists";
 
-      final negativePrompt =
-          "shading, shadows, filled areas, gray areas, gradients, color, colored, "
-          "dark areas, black fill, solid fill, realistic shading, cell shading, tonal variation, "
-          "grayscale fill, photographic, realistic, complex details, watermark, text, blurry, "
-          "partial body, cropped, cut off, sketchy lines, crosshatching, hatching, stippling, "
-          "background, scenery, landscape, objects, furniture, buildings, trees, grass, sky, "
-          "clouds, ground, floor, environment, props, items, decorations";
+    final negativePrompt =
+        "shading, shadows, filled areas, gray areas, gradients, color, colored, "
+        "dark areas, black fill, solid fill, realistic shading, cell shading, tonal variation, "
+        "grayscale fill, photographic, realistic, complex details, watermark, text, blurry, "
+        "partial body, cropped, cut off, sketchy lines, crosshatching, hatching, stippling, "
+        "background, scenery, landscape, objects, furniture, buildings, trees, grass, sky, "
+        "clouds, ground, floor, environment, props, items, decorations";
 
-      final url = Uri.parse(
-        'https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0',
-      );
+    final url = Uri.parse(
+      'https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0',
+    );
+    final body = jsonEncode({
+      'inputs': prompt,
+      'parameters': {
+        'negative_prompt': negativePrompt,
+        'width': width,
+        'height': height,
+        'guidance_scale': 7.5,
+        'num_inference_steps': 30,
+      },
+    });
+
+    for (int i = 0; i < stableDiffusionApiKeys.length; i++) {
+      final token = stableDiffusionApiKeys[_currentTokenIndex];
       final headers = {
-        'Authorization': 'Bearer $stableDiffusionApiKey',
+        'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',
       };
-      final body = jsonEncode({
-        'inputs': prompt,
-        'parameters': {
-          'negative_prompt': negativePrompt,
-          'width': width,
-          'height': height,
-          'guidance_scale': 7.5,
-          'num_inference_steps': 30,
-        },
-      });
-
-      if (_cancelRequested) {
-        _loading = false;
-        notifyListeners();
-        return null;
+      try {
+        if (_cancelRequested) {
+          _loading = false;
+          notifyListeners();
+          return null;
+        }
+        final response = await http.post(url, headers: headers, body: body);
+        if (_cancelRequested) {
+          _loading = false;
+          notifyListeners();
+          return null;
+        }
+        if (response.statusCode == 200) {
+          final base64Image = base64Encode(response.bodyBytes);
+          _lastError = null;
+          _images.add(base64Image);
+          _loading = false;
+          notifyListeners();
+          return base64Image;
+        } else {
+          _lastError =
+              'Failed to generate coloring book image with token $_currentTokenIndex: ${response.statusCode}';
+          // Try next token
+          _currentTokenIndex =
+              (_currentTokenIndex + 1) % stableDiffusionApiKeys.length;
+        }
+      } catch (e) {
+        _lastError = 'Error with token $_currentTokenIndex: $e';
+        _currentTokenIndex =
+            (_currentTokenIndex + 1) % stableDiffusionApiKeys.length;
       }
-      final response = await http.post(url, headers: headers, body: body);
-      if (_cancelRequested) {
-        _loading = false;
-        notifyListeners();
-        return null;
-      }
-      if (response.statusCode == 200) {
-        final base64Image = base64Encode(response.bodyBytes);
-        _lastError = null;
-        _images.add(base64Image);
-        _loading = false;
-        notifyListeners();
-        return base64Image;
-      }
-      // Only set _lastError, do not set _lastResult
-      _lastError = 'Failed to generate coloring book image: ${response.statusCode}';
-      _loading = false;
-      notifyListeners();
-      return null;
-    } catch (e) {
-      _lastError = e.toString();
-      _loading = false;
-      notifyListeners();
-      return null;
     }
+    _loading = false;
+    notifyListeners();
+    return null;
   }
 
   void cancelGeneration() {
@@ -152,7 +160,8 @@ class AIService extends ChangeNotifier {
   }
 
   final String apiKey;
-  final String stableDiffusionApiKey;
+  // Use the list from config.dart
+  // Uses the global stableDiffusionApiKeys from config.dart
   // Use the flash model for faster responses
   final String _baseUrl =
       'https://generativelanguage.googleapis.com/v1/models/gemini-2.0-flash:generateContent';
@@ -167,7 +176,7 @@ class AIService extends ChangeNotifier {
   bool _awaitingImageDescription = false;
   final List<String> _images = [];
   List<String> get images => List.unmodifiable(_images);
-  AIService(this.apiKey, this.stableDiffusionApiKey);
+  AIService(this.apiKey);
 
   /// Checks if the response contains an image command and updates state accordingly.
   void checkForImageCommand(String response) {
@@ -244,7 +253,8 @@ class AIService extends ChangeNotifier {
         'https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0',
       );
       final headers = {
-        'Authorization': 'Bearer $stableDiffusionApiKey',
+        'Authorization':
+            'Bearer ${stableDiffusionApiKeys.isNotEmpty ? stableDiffusionApiKeys[0] : ''}',
         'Content-Type': 'application/json',
       };
       final body = jsonEncode({'inputs': coloringPrompt});

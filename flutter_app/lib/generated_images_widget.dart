@@ -7,11 +7,11 @@ class GeneratedImagesWidget extends StatelessWidget {
   final void Function()? onImageTap;
 
   const GeneratedImagesWidget({
-    Key? key,
+    super.key,
     required this.images,
     this.loading = false,
     this.onImageTap,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

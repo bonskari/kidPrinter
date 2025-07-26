@@ -3,7 +3,7 @@ import 'dart:io' show Platform;
 import 'package:wakelock_plus/wakelock_plus.dart';
 import 'main_page.dart';
 import 'config.dart';
-import 'gemini_service.dart';
+import 'ai_service.dart';
 import 'package:provider/provider.dart';
 
 void main() {
@@ -12,7 +12,7 @@ void main() {
   }
   runApp(
     ChangeNotifierProvider(
-      create: (_) => GeminiService(geminiApiKey),
+      create: (_) => AIService(geminiApiKey, stableDiffusionApiKey),
       child: const MyApp(),
     ),
   );

@@ -38,6 +38,29 @@ app.*.symbols
 
 # Obfuscation related
 app.*.map.json
+# Sensitive keys and config
+lib/config.dart
+*.key
+*.env
+*.secret
+*.pem
+*.p12
+*.crt
+*.cer
+*.der
+*.jks
+*.keystore
+*.pfx
+android/app/key.properties
+android/local.properties
+android/gradle.properties
+android/app/google-services.json
+android/app/google-services.plist
+android/app/*.keystore
+macos/Runner/GoogleService-Info.plist
+windows/Runner/GoogleService-Info.plist
+linux/Runner/GoogleService-Info.plist
+web/GoogleService-Info.json
 
 # Android Studio will place build artifacts here
 /android/app/debug
@@ -46,3 +69,4 @@ app.*.map.json
 
 # API keys and secrets
 lib/config.dart
+!lib/config.example.dart

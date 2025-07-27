@@ -39,7 +39,6 @@ app.*.symbols
 # Obfuscation related
 app.*.map.json
 # Sensitive keys and config
-lib/config.dart
 *.key
 *.env
 *.secret
@@ -69,4 +68,3 @@ web/GoogleService-Info.json
 
 # API keys and secrets
 lib/config.dart
-!lib/config.example.dart

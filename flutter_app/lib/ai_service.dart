@@ -1,7 +1,10 @@
 import 'dart:convert';
+import 'dart:io';
+import 'package:flutter_app/log.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart';
 import 'config.dart';
+import 'dart:io';
 
 class AIService extends ChangeNotifier {
   bool get awaitingImageDescription => _awaitingImageDescription;
@@ -9,85 +12,112 @@ class AIService extends ChangeNotifier {
   int _currentTokenIndex = 0;
 
   /// Generate a perfected coloring book image using Stable Diffusion XL (Hugging Face)
-  Future<String?> generateColoringBookImage({
+  Future<Uint8List?> generateColoringBookImage({
     required String subject,
-    int width = 1024,
-    int height = 1024,
+    int width = 744,
+    int height = 1048,
   }) async {
-    _cancelRequested = false;
-    _images.clear();
-    _loading = true;
-    notifyListeners();
-    final prompt =
-        "black and white line art coloring book page of $subject, "
-        "full body visible, pure line drawing only, thick black outlines on pure white background, "
-        "NO SHADING, NO FILLED AREAS, NO GRAY, empty areas inside lines, outline only, "
-        "kids coloring book style, simple cartoon, friendly expression, complete character visible, "
-        "NO BACKGROUND, plain white background, character only, isolated character, a few pixels of white margin around the character, character fully visible and centered, do not crop, do not overflow, do not touch the edges, hands in fists";
+    try {
+      _cancelRequested = false;
+      _images.clear();
+      _loading = true;
+      notifyListeners();
+      final prompt =
+          "black and white line art coloring book page of $subject, "
+          "full body visible, pure line drawing only, thick black outlines on pure white background, "
+          "NO SHADING, NO FILLED AREAS, NO GRAY, empty areas inside lines, outline only, "
+          "kids coloring book style, simple cartoon, friendly expression, complete character visible, "
+          "NO BACKGROUND, plain white background, character only, isolated character, a few pixels of white margin around the character, character fully visible and centered, do not crop, do not overflow, do not touch the edges, hands in fists";
 
-    final negativePrompt =
-        "shading, shadows, filled areas, gray areas, gradients, color, colored, "
-        "dark areas, black fill, solid fill, realistic shading, cell shading, tonal variation, "
-        "grayscale fill, photographic, realistic, complex details, watermark, text, blurry, "
-        "partial body, cropped, cut off, sketchy lines, crosshatching, hatching, stippling, "
-        "background, scenery, landscape, objects, furniture, buildings, trees, grass, sky, "
-        "clouds, ground, floor, environment, props, items, decorations";
+      final negativePrompt =
+          "shading, shadows, filled areas, gray areas, gradients, color, colored, "
+          "dark areas, black fill, solid fill, realistic shading, cell shading, tonal variation, "
+          "grayscale fill, photographic, realistic, complex details, watermark, text, blurry, "
+          "partial body, cropped, cut off, sketchy lines, crosshatching, hatching, stippling, "
+          "background, scenery, landscape, objects, furniture, buildings, trees, grass, sky, "
+          "clouds, ground, floor, environment, props, items, decorations";
 
-    final url = Uri.parse(
-      'https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0',
-    );
-    final body = jsonEncode({
-      'inputs': prompt,
-      'parameters': {
-        'negative_prompt': negativePrompt,
-        'width': width,
-        'height': height,
-        'guidance_scale': 7.5,
-        'num_inference_steps': 30,
-      },
-    });
+      final url = Uri.parse(
+        'https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0',
+      );
+      final body = jsonEncode({
+        'inputs': prompt,
+        'parameters': {
+          'negative_prompt': negativePrompt,
+          'width': width,
+          'height': height,
+          'guidance_scale': 7.5,
+          'num_inference_steps': 30,
+        },
+      });
 
-    for (int i = 0; i < stableDiffusionApiKeys.length; i++) {
-      final token = stableDiffusionApiKeys[_currentTokenIndex];
-      final headers = {
-        'Authorization': 'Bearer $token',
-        'Content-Type': 'application/json',
-      };
-      try {
-        if (_cancelRequested) {
-          _loading = false;
-          notifyListeners();
-          return null;
+      for (int i = 0; i < stableDiffusionApiKeys.length; i++) {
+        final token = stableDiffusionApiKeys[i];
+        final headers = {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        };
+        try {
+          if (_cancelRequested) {
+            _loading = false;
+            notifyListeners();
+            return null;
+          }
+          final response = await http.post(url, headers: headers, body: body);
+          if (_cancelRequested) {
+            _loading = false;
+            notifyListeners();
+            return null;
+          }
+          if (response.statusCode == 200) {
+            _lastError = null;
+            _images.add(response.bodyBytes);
+            // Write image to tmp/generated_image.png for inspection
+            try {
+              final tmpFile = File('tmp/generated_image.png');
+              tmpFile.createSync(recursive: true);
+              tmpFile.writeAsBytesSync(response.bodyBytes);
+              print(
+                'Image bytes written to tmp/generated_image.png, length: ${response.bodyBytes.length}',
+              );
+            } catch (e) {
+              print('Failed to write image file: $e');
+            }
+            _loading = false;
+            notifyListeners();
+            return response.bodyBytes;
+          } else {
+            String apiError = '';
+            try {
+              final errorJson = jsonDecode(response.body);
+              if (errorJson is Map && errorJson.containsKey('error')) {
+                apiError = errorJson['error'].toString();
+              }
+            } catch (_) {
+              apiError = response.body;
+            }
+            _lastError =
+                'Failed to generate coloring book image with token $i: ${response.statusCode} - $apiError';
+            // Try next token
+          }
+        } catch (e) {
+          _lastError = 'Error with token $i: $e';
         }
-        final response = await http.post(url, headers: headers, body: body);
-        if (_cancelRequested) {
-          _loading = false;
-          notifyListeners();
-          return null;
-        }
-        if (response.statusCode == 200) {
-          final base64Image = base64Encode(response.bodyBytes);
-          _lastError = null;
-          _images.add(base64Image);
-          _loading = false;
-          notifyListeners();
-          return base64Image;
-        } else {
-          _lastError =
-              'Failed to generate coloring book image with token $_currentTokenIndex: ${response.statusCode}';
-          // Try next token
-          _currentTokenIndex =
-              (_currentTokenIndex + 1) % stableDiffusionApiKeys.length;
-        }
-      } catch (e) {
-        _lastError = 'Error with token $_currentTokenIndex: $e';
-        _currentTokenIndex =
-            (_currentTokenIndex + 1) % stableDiffusionApiKeys.length;
       }
+
+      _loading = false;
+      notifyListeners();
+      if (_lastError != null) {
+        throw Exception(_lastError);
+      }
+      return null;
+    } catch (e) {
+      _lastError = 'Unexpected error in generateColoringBookImage: $e';
+      LOG.ERROR(_lastError);
+      _loading = false;
+      notifyListeners();
+      return null;
     }
-    _loading = false;
-    notifyListeners();
-    return null;
   }
 
   void cancelGeneration() {
@@ -174,8 +204,8 @@ class AIService extends ChangeNotifier {
   bool get loading => _loading;
 
   bool _awaitingImageDescription = false;
-  final List<String> _images = [];
-  List<String> get images => List.unmodifiable(_images);
+  final List<Uint8List> _images = [];
+  List<Uint8List> get images => List.unmodifiable(_images);
   AIService(this.apiKey);
 
   /// Checks if the response contains an image command and updates state accordingly.
@@ -241,7 +271,7 @@ class AIService extends ChangeNotifier {
   }
 
   /// Generates images from a prompt using Hugging Face Inference API.
-  Future<List<String>> _generateImages(String prompt) async {
+  Future<List<Uint8List>> _generateImages(String prompt) async {
     _images.clear();
     _awaitingImageDescription = false;
     _loading = true;
@@ -262,12 +292,12 @@ class AIService extends ChangeNotifier {
       final response = await http.post(url, headers: headers, body: body);
       if (response.statusCode == 200) {
         final bytes = response.bodyBytes;
-        final base64Image = base64Encode(bytes);
+
         _lastError = null;
-        _images.add(base64Image);
+        _images.add(bytes);
         _loading = false;
         notifyListeners();
-        return [base64Image];
+        return [bytes];
       }
       throw Exception(
         'Failed to generate image: ${response.statusCode} ${response.body}',

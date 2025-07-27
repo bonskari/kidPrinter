@@ -3,8 +3,8 @@
 #
 
 list(APPEND FLUTTER_PLUGIN_LIST
-  printing
   record_linux
+  window_size
 )
 
 list(APPEND FLUTTER_FFI_PLUGIN_LIST

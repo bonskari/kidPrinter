@@ -34,11 +34,25 @@ class GeneratedImagesWidget extends StatelessWidget {
           ? Center(child: CircularProgressIndicator())
           : images.isEmpty || imageBytes == null
           ? Center(
-              child: Text(
-                imageBytes == null
-                    ? 'Image decode error.'
-                    : 'No generated images yet.',
-                style: TextStyle(color: Colors.grey),
+              child: TweenAnimationBuilder<double>(
+                tween: Tween(begin: 1.0, end: 1.3),
+                duration: const Duration(seconds: 1),
+                curve: Curves.easeInOut,
+                builder: (context, scale, child) {
+                  return Transform.scale(
+                    scale: scale,
+                    child: Icon(
+                      imageBytes == null && images.isNotEmpty
+                          ? Icons.error_outline
+                          : Icons.image_not_supported,
+                      color: Colors.purple,
+                      size: 48,
+                    ),
+                  );
+                },
+                onEnd: () {},
+                // Repeat the animation by rebuilding
+                child: SizedBox.shrink(),
               ),
             )
           : GestureDetector(

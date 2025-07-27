@@ -34,13 +34,17 @@ class _IdleWaveformPainter extends CustomPainter {
     final midY = size.height / 2;
     final amplitude = 25.0;
     final waveLength = size.width / 2;
-    path.moveTo(0, midY);
-    for (double x = 0; x <= size.width; x += 2) {
+
+    for (double x = 0; x <= size.width; x += 1) {
       double y =
           midY +
           amplitude *
               (0.5 * (1 + math.sin(phase + x / waveLength * 2 * math.pi)));
-      path.lineTo(x, y);
+      if (x == 0) {
+        path.moveTo(x, y);
+      } else {
+        path.lineTo(x, y);
+      }
     }
     canvas.drawPath(path, paint);
   }

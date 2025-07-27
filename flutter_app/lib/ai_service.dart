@@ -11,6 +11,28 @@ class AIService extends ChangeNotifier {
   bool _cancelRequested = false;
   int _currentTokenIndex = 0;
 
+  final String apiKey;
+  // Use the list from config.dart
+  // Uses the global stableDiffusionApiKeys from config.dart
+  // Use the flash model for faster responses
+  final String _baseUrl =
+      'https://generativelanguage.googleapis.com/v1/models/gemini-2.0-flash:generateContent';
+
+  String? _lastResult;
+  String? get lastResult => _lastResult;
+  String? _lastError;
+  String? get lastError => _lastError;
+  bool _loading = false;
+  bool generatingImage = false;
+  bool get loading => _loading;
+
+  /// If true, use Gemini image generation; if false, use Hugging Face.
+  bool useGeminiImageGeneration = true;
+  bool _awaitingImageDescription = false;
+  final List<Uint8List> _images = [];
+  List<Uint8List> get images => List.unmodifiable(_images);
+  AIService(this.apiKey);
+
   /// Generate a perfected coloring book image using Stable Diffusion XL (Hugging Face)
   Future<Uint8List?> generateColoringBookImage({
     required String subject,
@@ -20,6 +42,7 @@ class AIService extends ChangeNotifier {
     try {
       _cancelRequested = false;
       _images.clear();
+      generatingImage = true;
       _loading = true;
       notifyListeners();
       final prompt =
@@ -59,12 +82,14 @@ class AIService extends ChangeNotifier {
         };
         try {
           if (_cancelRequested) {
+            generatingImage = false;
             _loading = false;
             notifyListeners();
             return null;
           }
           final response = await http.post(url, headers: headers, body: body);
           if (_cancelRequested) {
+            generatingImage = false;
             _loading = false;
             notifyListeners();
             return null;
@@ -83,6 +108,7 @@ class AIService extends ChangeNotifier {
             } catch (e) {
               print('Failed to write image file: $e');
             }
+            generatingImage = false;
             _loading = false;
             notifyListeners();
             return response.bodyBytes;
@@ -105,6 +131,7 @@ class AIService extends ChangeNotifier {
         }
       }
 
+      generatingImage = false;
       _loading = false;
       notifyListeners();
       if (_lastError != null) {
@@ -125,9 +152,6 @@ class AIService extends ChangeNotifier {
     _loading = false;
     notifyListeners();
   }
-
-  /// If true, use Gemini image generation; if false, use Hugging Face.
-  bool useGeminiImageGeneration = true;
 
   /// Generates images using the Gemini (Google) API, returns both text and image (base64) if available.
   Future<Map<String, dynamic>> generateGeminiImage(String prompt) async {
@@ -188,25 +212,6 @@ class AIService extends ChangeNotifier {
       return {};
     }
   }
-
-  final String apiKey;
-  // Use the list from config.dart
-  // Uses the global stableDiffusionApiKeys from config.dart
-  // Use the flash model for faster responses
-  final String _baseUrl =
-      'https://generativelanguage.googleapis.com/v1/models/gemini-2.0-flash:generateContent';
-
-  String? _lastResult;
-  String? get lastResult => _lastResult;
-  String? _lastError;
-  String? get lastError => _lastError;
-  bool _loading = false;
-  bool get loading => _loading;
-
-  bool _awaitingImageDescription = false;
-  final List<Uint8List> _images = [];
-  List<Uint8List> get images => List.unmodifiable(_images);
-  AIService(this.apiKey);
 
   /// Checks if the response contains an image command and updates state accordingly.
   void checkForImageCommand(String response) {

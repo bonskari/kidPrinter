@@ -11,6 +11,7 @@ class LiveWaveform extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final width = constraints.maxWidth;
+
         return CustomPaint(
           size: Size(width, 80),
           painter: _LiveWaveformPainter(amplitude, phase),
@@ -30,20 +31,24 @@ class _LiveWaveformPainter extends CustomPainter {
     final paint = Paint()
       ..color = Colors.cyanAccent
       ..strokeWidth = 4
-      ..style = PaintingStyle.stroke;
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
 
     final path = Path();
     final midY = size.height / 2;
-    // Lower minimum amplitude for silence, higher for loud
     final visualAmp = 2.0 + (amplitude.clamp(0.0, 1.0) * 48.0);
     final waveLength = size.width / 2;
-    path.moveTo(0, midY);
-    for (double x = 0; x <= size.width; x += 2) {
+
+    for (double x = 0; x <= size.width; x += 1) {
       double y =
           midY +
           visualAmp *
               (0.5 * (1 + math.sin(phase + x / waveLength * 2 * math.pi)));
-      path.lineTo(x, y);
+      if (x == 0) {
+        path.moveTo(x, y);
+      } else {
+        path.lineTo(x, y);
+      }
     }
     canvas.drawPath(path, paint);
   }

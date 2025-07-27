@@ -28,46 +28,39 @@ class GeneratedImagesWidget extends StatelessWidget {
       }
     }
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      child: AspectRatio(
-        aspectRatio: 720 / 1280,
-        child: loading
-            ? Center(child: CircularProgressIndicator())
-            : images.isEmpty || imageBytes == null
-            ? Center(
-                child: Text(
-                  imageBytes == null
-                      ? 'Image decode error.'
-                      : 'No generated images yet.',
-                  style: TextStyle(color: Colors.grey),
-                ),
-              )
-            : GestureDetector(
-                onTap: onImageTap,
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(24),
-                  child: Align(
-                    alignment: Alignment.topCenter,
-                    child: Container(
-                      padding: const EdgeInsets.all(8),
-                      color: Colors.red,
-                      child: Image.memory(
-                        imageBytes,
-                        width: double.infinity,
-                        height: double.infinity,
-                        errorBuilder: (ctx, err, stack) => Container(
-                          width: double.infinity,
-                          height: double.infinity,
-                          color: Colors.grey.shade200,
-                          child: Icon(Icons.broken_image, color: Colors.purple),
-                        ),
-                      ),
+    return AspectRatio(
+      aspectRatio: 744 / 1048,
+      child: loading
+          ? Center(child: CircularProgressIndicator())
+          : images.isEmpty || imageBytes == null
+          ? Center(
+              child: Text(
+                imageBytes == null
+                    ? 'Image decode error.'
+                    : 'No generated images yet.',
+                style: TextStyle(color: Colors.grey),
+              ),
+            )
+          : GestureDetector(
+              onTap: onImageTap,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(24),
+                child: Align(
+                  alignment: Alignment.topCenter,
+                  child: Image.memory(
+                    imageBytes,
+                    width: double.infinity,
+                    height: double.infinity,
+                    errorBuilder: (ctx, err, stack) => Container(
+                      width: double.infinity,
+                      height: double.infinity,
+                      color: Colors.grey.shade200,
+                      child: Icon(Icons.broken_image, color: Colors.purple),
                     ),
                   ),
                 ),
               ),
-      ),
+            ),
     );
   }
 }

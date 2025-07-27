@@ -326,7 +326,9 @@ class _KidPrinterWidgetState extends State<KidPrinterWidget>
       return Column(
         children: [
           Spacer(),
-          Expanded(
+          // Remove Spacer widgets and use a SizedBox to control height
+          SizedBox(
+            height: 450, // Increase this value for a bigger image
             child: GeneratedImagesWidget(
               images: aiService.images,
               loading: false,
@@ -349,29 +351,42 @@ class _KidPrinterWidgetState extends State<KidPrinterWidget>
               ],
             ),
           ),
-          Spacer(),
+
           // Microphone dropdown row
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: DropdownButton<InputDevice>(
-              value: _selectedMicDevice,
-              items: _micDevices
-                  .map(
-                    (device) => DropdownMenuItem<InputDevice>(
-                      value: device,
-                      child: Text(device.label),
-                    ),
-                  )
-                  .toList(),
-              onChanged: (device) {
-                setState(() {
-                  _selectedMicDevice = device;
-                  _micName = device?.label;
-                });
-              },
-              hint: const Text('Select microphone'),
-            ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                child: DropdownButton<InputDevice>(
+                  value: _selectedMicDevice,
+                  items: _micDevices
+                      .map(
+                        (device) => DropdownMenuItem<InputDevice>(
+                          value: device,
+                          child: SizedBox(
+                            width: MediaQuery.sizeOf(context).width * 0.6,
+                            child: Text(
+                              device.label,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (device) {
+                    setState(() {
+                      _selectedMicDevice = device;
+                      _micName = device?.label;
+                    });
+                  },
+                  hint: const Text('Select microphone'),
+                ),
+              ),
+            ],
           ),
+
           // TEXT FIELD
           if (_recognizedWords.isNotEmpty || _micError != null)
             Row(

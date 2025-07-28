@@ -19,12 +19,14 @@ class MicInfoWidget extends StatelessWidget {
 
   static Future<String> runDiagnostics({
     required BuildContext context,
-
     required InputDevice? selectedMicDevice,
     required Stt stt,
   }) async {
     StringBuffer diag = StringBuffer();
     diag.writeln('--- Microphone Diagnostics ---');
+    diag.writeln('Microphone selection is not supported.');
+    diag.writeln('Using default system microphone.');
+    diag.writeln('Device listing: Not available.');
     // 1. Microphone permission (before mic tests)
     try {
       final micStatus = await Permission.microphone.request().timeout(
@@ -47,16 +49,6 @@ class MicInfoWidget extends StatelessWidget {
       return diag.toString();
     }
 
-    // 2. Device listing
-    try {
-      diag.writeln('Device listing: (skipped, see main widget)');
-    } on TimeoutException {
-      diag.writeln('Device listing: TIMEOUT');
-    } catch (e) {
-      diag.writeln('Device listing: ERROR ($e)');
-    }
-
-    // 3. Record plugin test (removed, now using waveform_recorder everywhere)
     diag.writeln('Record plugin: replaced by waveform_recorder');
 
     // 4. STTS plugin test
@@ -95,39 +87,19 @@ class MicInfoWidget extends StatelessWidget {
           borderRadius: BorderRadius.circular(8),
         ),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(Icons.mic, color: Colors.cyanAccent),
-            SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                'Mic status: ${micError.isNotEmpty ? micError : 'OK'}',
-                style: TextStyle(fontSize: 16),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
+            if (micError.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8.0),
+                child: Text(
+                  micError,
+                  style: const TextStyle(color: Colors.redAccent),
+                ),
               ),
-            ),
-            SizedBox(width: 16),
-            IconButton(
-              icon: Icon(Icons.info_outline, color: Colors.cyanAccent),
-              tooltip: 'Run mic diagnostics',
-              onPressed: () {
-                showDialog(
-                  context: context,
-                  barrierDismissible: false,
-                  builder: (ctx) {
-                    return DiagnosticsDialog(
-                      runDiagnostics: () => runDiagnostics(
-                        context: context,
-                        selectedMicDevice: selectedMicDevice,
-                        stt: stt,
-                      ),
-                    );
-                  },
-                );
-              },
-            ),
+
+            // ...existing code...
           ],
         ),
       ),

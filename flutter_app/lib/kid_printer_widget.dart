@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_app/generated_images_widget.dart';
@@ -25,12 +24,8 @@ class _KidPrinterWidgetState extends State<KidPrinterWidget>
       WaveformRecorderController();
   bool _isRecording = false;
   String? _micError;
-  InputDevice? _selectedMicDevice;
   final Stt _stt = Stt();
   String _recognizedWords = '';
-  List<InputDevice> _micDevices = [];
-  String? _micName;
-  List<String> _availableLanguages = [];
   String selectedLang = '';
   Timer? _timer;
   String? _lastSpokenGeminiResult;
@@ -66,13 +61,8 @@ class _KidPrinterWidgetState extends State<KidPrinterWidget>
 
   Future<void> _initMicName() async {
     LOG.DEBUG('_initMicName called');
-    // Remove _recorder usage, as device listing should be handled elsewhere or by waveform_recorder if needed
     setState(() {
-      _micDevices = [];
       _micError = null;
-      _micName = 'No mic found';
-      _selectedMicDevice = null;
-      LOG.DEBUG('No mic found');
     });
   }
 
@@ -83,7 +73,6 @@ class _KidPrinterWidgetState extends State<KidPrinterWidget>
       // Check if the available languages contain the desired languageCode
       final languages = await _stt.getLanguages();
       LOG.DEBUG('Available languages: $languages');
-      _availableLanguages = languages;
       if (!languages.contains(languageCode)) {
         // If not available, fallback to the first available language
         languageCode = languages.isNotEmpty ? languages.first : languageCode;
@@ -213,43 +202,9 @@ class _KidPrinterWidgetState extends State<KidPrinterWidget>
         ),
         MicInfoWidget(
           micError: _micError ?? '',
-          selectedMicDevice: _selectedMicDevice,
+          selectedMicDevice: null,
           stt: _stt,
         ),
-        if (Theme.of(context).platform == TargetPlatform.windows)
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                child: DropdownButton<InputDevice>(
-                  value: _selectedMicDevice,
-                  items: _micDevices
-                      .map(
-                        (device) => DropdownMenuItem<InputDevice>(
-                          value: device,
-                          child: SizedBox(
-                            width: MediaQuery.sizeOf(context).width * 0.6,
-                            child: Text(
-                              device.label,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: (device) {
-                    setState(() {
-                      _selectedMicDevice = device;
-                      _micName = device?.label;
-                    });
-                  },
-                  hint: const Text('Select microphone'),
-                ),
-              ),
-            ],
-          ),
         if (_recognizedWords.isNotEmpty || _micError != null)
           Row(
             mainAxisAlignment: MainAxisAlignment.center,

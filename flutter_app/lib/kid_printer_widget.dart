@@ -3,13 +3,14 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_app/generated_images_widget.dart';
 import 'package:flutter_app/printer_service.dart';
-import 'package:stts/stts.dart';
+import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'log.dart';
 import 'package:provider/provider.dart';
 import 'ai_service.dart';
+
 import 'kid_printer_button.dart';
 import 'mic_info_widget.dart';
-import 'package:waveform_recorder/waveform_recorder.dart';
+import 'package:stts/stts.dart';
 
 class KidPrinterWidget extends StatefulWidget {
   const KidPrinterWidget({super.key});
@@ -20,13 +21,13 @@ class KidPrinterWidget extends StatefulWidget {
 
 class _KidPrinterWidgetState extends State<KidPrinterWidget>
     with SingleTickerProviderStateMixin {
-  final WaveformRecorderController _waveformController =
-      WaveformRecorderController();
+  bool _awaitingImageApproval = false;
+  double _soundLevel = 0.0;
   bool _isRecording = false;
   String? _micError;
-  final Stt _stt = Stt();
+  late stt.SpeechToText _speech;
   String _recognizedWords = '';
-  String selectedLang = '';
+  String selectedLang = 'fi-FI';
   Timer? _timer;
   String? _lastSpokenGeminiResult;
   final Tts _tts = Tts();
@@ -34,10 +35,8 @@ class _KidPrinterWidgetState extends State<KidPrinterWidget>
   void _toggleRecording() async {
     try {
       if (_isRecording) {
-        await _waveformController.stopRecording();
         _stopSpeechRecognition();
       } else {
-        await _waveformController.startRecording();
         _startSpeechRecognition();
       }
       setState(() {
@@ -45,7 +44,7 @@ class _KidPrinterWidgetState extends State<KidPrinterWidget>
       });
     } catch (e) {
       setState(() {
-        _micError = 'WaveformRecorder error: $e';
+        _micError = 'Speech recognition error: $e';
       });
     }
   }
@@ -64,41 +63,68 @@ class _KidPrinterWidgetState extends State<KidPrinterWidget>
     setState(() {
       _micError = null;
     });
+    _speech = stt.SpeechToText();
+    bool available = await _speech.initialize(
+      onStatus: (status) => LOG.DEBUG('Speech status: $status'),
+      onError: (error) {
+        LOG.ERROR('Speech error: $error');
+        setState(() {
+          _micError = 'Speech recognition error: $error';
+        });
+      },
+    );
+    if (!available) {
+      setState(() {
+        _micError = 'Speech recognition not available';
+      });
+    }
   }
 
   Future<void> _startSpeechRecognition() async {
     try {
-      // Start listening with stts, set language to Finnish
-      String languageCode = 'fi-FI';
-      // Check if the available languages contain the desired languageCode
-      final languages = await _stt.getLanguages();
-      LOG.DEBUG('Available languages: $languages');
-      if (!languages.contains(languageCode)) {
-        // If not available, fallback to the first available language
-        languageCode = languages.isNotEmpty ? languages.first : languageCode;
-        print(
-          'ERROR: Desired language $languageCode not available. Using fallback: $languageCode',
-        );
-      }
-      selectedLang = languageCode;
-      await _stt.setLanguage(languageCode);
-
-      await _stt.stop();
-      _stt.onResultChanged.listen((result) {
-        setupResultChanged(result);
-      });
-
-      await _stt.start(
-        SttRecognitionOptions(
-          offline: true,
-          punctuation: true,
-          contextualStrings: const [],
-          android: const SttRecognitionAndroidOptions(),
-          ios: const SttRecognitionIosOptions(),
-          macos: const SttRecognitionMacosOptions(),
-        ),
+      bool available = await _speech.initialize(
+        onStatus: (status) {
+          LOG.DEBUG('Speech status: $status');
+          // Restart listening if stopped due to timeout or done
+          if (status == 'notListening' || status == 'done') {
+            Future.delayed(const Duration(milliseconds: 500), () {
+              if (_isRecording) _startSpeechRecognition();
+            });
+          }
+        },
+        onError: (error) {
+          LOG.ERROR('Speech error: $error');
+          setState(() {
+            _micError = 'Speech recognition error: $error';
+          });
+          // Restart listening on error if still recording
+          Future.delayed(const Duration(milliseconds: 500), () {
+            if (_isRecording) _startSpeechRecognition();
+          });
+        },
       );
-      LOG.DEBUG('STT started with language: $languageCode');
+      if (!available) {
+        setState(() {
+          _micError = 'Speech recognition not available';
+        });
+        return;
+      }
+      _speech.listen(
+        onResult: (result) {
+          setupResultChanged(result.recognizedWords, result.finalResult);
+        },
+        onSoundLevelChange: (level) {
+          LOG.DEBUG('Sound level changed: $level');
+          setState(() {
+            // Normalize level: -2.0 (silence) to ~12.0 (loud)
+            _soundLevel = ((level + 2.0) / 14.0).clamp(0.0, 1.0);
+          });
+        },
+        localeId: selectedLang,
+        listenFor: const Duration(hours: 1), // Effectively 'forever'
+        pauseFor: const Duration(seconds: 10), // Allow longer pauses
+      );
+      LOG.DEBUG('Speech recognition started with language: $selectedLang');
     } catch (e) {
       LOG.ERROR('Error starting speech recognition: $e');
       setState(() {
@@ -108,47 +134,57 @@ class _KidPrinterWidgetState extends State<KidPrinterWidget>
   }
 
   Future<void> _stopSpeechRecognition() async {
-    await _stt.stop();
+    await _speech.stop();
     // Do not clear recognized words on stop
   }
 
-  void setupResultChanged(SttRecognition result) {
-    LOG.DEBUG('Recognized words: ${result.text}');
-    // Stop TTS whenever user starts to speak
-    _tts.stop();
+  void setupResultChanged(String recognizedText, bool isFinal) {
+    LOG.DEBUG('Recognized words: $recognizedText');
     AIService aiService = Provider.of<AIService>(context, listen: false);
-    if (!result.isFinal) return;
+    if (!isFinal) return;
+    PrinterService printerService = Provider.of<PrinterService>(
+      context,
+      listen: false,
+    );
     setState(() {
-      _recognizedWords += result.text;
-      // Start/reset a timer that gets cancelled if this callback is called again
+      _recognizedWords += recognizedText;
       _timer?.cancel();
-      _timer = Timer(const Duration(seconds: 2), () {
-        // Timer action: clear recognized words after 2 seconds
+      _timer = Timer(const Duration(seconds: 2), () async {
         if (mounted) {
-          aiService.generate(_recognizedWords.trim());
+          if (_awaitingImageApproval) {
+            final answer = _recognizedWords.trim().toLowerCase();
+            final aiService = Provider.of<AIService>(context, listen: false);
+            if (answer == 'yes' || answer == 'kyllä') {
+              if (aiService.images.isNotEmpty) {
+                await printerService.printImageRemote(
+                  base64Image: aiService.images.last,
+                );
+                await _tts.start('Kuva lähetetty tulostimeen.');
+              }
+              setState(() {
+                // Only clear __IMAGE__ result if approved
+                if (aiService.lastResult != null &&
+                    aiService.lastResult!.trim().startsWith('__IMAGE__')) {
+                  aiService.clearLastResult();
+                }
+              });
+            }
+            setState(() {
+              _awaitingImageApproval = false;
+              _recognizedWords = '';
+              _micError = null;
+            });
+            return;
+          }
+          // Normal flow: generate response
+          await aiService.generate(_recognizedWords.trim());
           setState(() {
             _recognizedWords = '';
-            // send the result
+            _micError = null;
           });
         }
       });
-
-      LOG.DEBUG('Recognized words: ${result.text}');
-    });
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _stt.stop();
-      _stt.start(
-        SttRecognitionOptions(
-          offline: true,
-          punctuation: true,
-          contextualStrings: const [],
-
-          android: const SttRecognitionAndroidOptions(),
-          ios: const SttRecognitionIosOptions(),
-          macos: const SttRecognitionMacosOptions(),
-        ),
-      );
+      LOG.DEBUG('Recognized words: $recognizedText');
     });
   }
 
@@ -156,9 +192,6 @@ class _KidPrinterWidgetState extends State<KidPrinterWidget>
   void initState() {
     super.initState();
     _initMicName();
-    _stt.onResultChanged.listen((result) {
-      setupResultChanged(result);
-    });
   }
 
   @override
@@ -174,11 +207,31 @@ class _KidPrinterWidgetState extends State<KidPrinterWidget>
       context,
       listen: true,
     );
-    final ttsText = aiService.getTtsTextForResponse(_lastSpokenGeminiResult);
-    if (ttsText != null) {
+    final ttsTextRaw = aiService.getTtsTextForResponse(_lastSpokenGeminiResult);
+    final ttsText = ttsTextRaw == null
+        ? null
+        : cleanGeminiResponseForTTS(ttsTextRaw);
+    if (ttsText != null && ttsText.isNotEmpty && !_awaitingImageApproval) {
       _lastSpokenGeminiResult = aiService.lastResult;
-      _tts.start(ttsText);
+      if (aiService.lastResult != null &&
+          aiService.lastResult!.trim().startsWith('__IMAGE__')) {
+        setState(() {
+          _awaitingImageApproval = true;
+        });
+        _tts.start('Onko tämä kuva hyvä?').then((_) {
+          if (_isRecording) {
+            _startSpeechRecognition();
+          }
+        });
+      } else {
+        _tts.start(ttsText).then((_) {
+          if (_isRecording) {
+            _startSpeechRecognition();
+          }
+        });
+      }
     }
+
     return Column(
       children: [
         Flexible(
@@ -188,23 +241,34 @@ class _KidPrinterWidgetState extends State<KidPrinterWidget>
           ),
         ),
 
-        SizedBox(
-          height: 200,
-          child: Center(
-            child: _isRecording
-                ? WaveformRecorder(
-                    controller: _waveformController,
-                    height: 120,
-                    waveColor: Colors.cyan,
-                  )
-                : SizedBox(),
+        MicInfoWidget(micError: _micError ?? '', selectedMicDevice: null),
+
+        // --- Sound level bar visualization ---
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 32.0),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 100),
+            height: 18,
+            width: double.infinity,
+            decoration: BoxDecoration(
+              color: Colors.black,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: FractionallySizedBox(
+                widthFactor: _soundLevel,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.cyan,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+              ),
+            ),
           ),
         ),
-        MicInfoWidget(
-          micError: _micError ?? '',
-          selectedMicDevice: null,
-          stt: _stt,
-        ),
+
         if (_recognizedWords.isNotEmpty || _micError != null)
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -217,7 +281,7 @@ class _KidPrinterWidgetState extends State<KidPrinterWidget>
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
-                  _micError ?? _recognizedWords.trim().split(' ').last,
+                  _micError ?? _recognizedWords.trim(),
                   style: const TextStyle(fontSize: 16, color: Colors.white),
                 ),
               ),

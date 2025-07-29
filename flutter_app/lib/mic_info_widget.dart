@@ -1,26 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:record/record.dart';
-import 'package:stts/stts.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'dart:async';
-import 'diagnostics_dialog.dart';
 
 class MicInfoWidget extends StatelessWidget {
   final String micError;
   final InputDevice? selectedMicDevice;
-  final Stt stt;
 
   const MicInfoWidget({
     Key? key,
     required this.micError,
     required this.selectedMicDevice,
-    required this.stt,
   }) : super(key: key);
 
   static Future<String> runDiagnostics({
     required BuildContext context,
     required InputDevice? selectedMicDevice,
-    required Stt stt,
   }) async {
     StringBuffer diag = StringBuffer();
     diag.writeln('--- Microphone Diagnostics ---');
@@ -50,30 +45,6 @@ class MicInfoWidget extends StatelessWidget {
     }
 
     diag.writeln('Record plugin: replaced by waveform_recorder');
-
-    // 4. STTS plugin test
-    try {
-      await stt.stop().timeout(const Duration(seconds: 2));
-      await stt
-          .start(
-            SttRecognitionOptions(
-              offline: true,
-              punctuation: true,
-              contextualStrings: const [],
-              android: const SttRecognitionAndroidOptions(),
-              ios: const SttRecognitionIosOptions(),
-              macos: const SttRecognitionMacosOptions(),
-            ),
-          )
-          .timeout(const Duration(seconds: 2));
-      await Future.delayed(const Duration(milliseconds: 500));
-      await stt.stop().timeout(const Duration(seconds: 2));
-      diag.writeln('STTS plugin: OK (started and stopped)');
-    } on TimeoutException {
-      diag.writeln('STTS plugin: TIMEOUT');
-    } catch (e) {
-      diag.writeln('STTS plugin: ERROR ($e)');
-    }
     return diag.toString();
   }
 

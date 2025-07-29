@@ -7,6 +7,11 @@ import 'config.dart';
 import 'dart:io';
 
 class AIService extends ChangeNotifier {
+  void clearLastResult() {
+    _lastResult = null;
+    notifyListeners();
+  }
+
   bool get awaitingImageDescription => _awaitingImageDescription;
   bool _cancelRequested = false;
   int _currentTokenIndex = 0;
@@ -84,6 +89,7 @@ class AIService extends ChangeNotifier {
           if (_cancelRequested) {
             generatingImage = false;
             _loading = false;
+            _awaitingImageDescription = false;
             notifyListeners();
             return null;
           }
@@ -91,12 +97,15 @@ class AIService extends ChangeNotifier {
           if (_cancelRequested) {
             generatingImage = false;
             _loading = false;
+            _awaitingImageDescription = false;
             notifyListeners();
             return null;
           }
           if (response.statusCode == 200) {
             _lastError = null;
             _images.add(response.bodyBytes);
+            // Set lastResult to just the subject (main user words)
+            _lastResult = subject;
             // Write image to tmp/generated_image.png for inspection
             try {
               final tmpFile = File('tmp/generated_image.png');
@@ -110,6 +119,7 @@ class AIService extends ChangeNotifier {
             }
             generatingImage = false;
             _loading = false;
+            _awaitingImageDescription = false;
             notifyListeners();
             return response.bodyBytes;
           } else {
@@ -133,6 +143,7 @@ class AIService extends ChangeNotifier {
 
       generatingImage = false;
       _loading = false;
+      _awaitingImageDescription = false;
       notifyListeners();
       if (_lastError != null) {
         throw Exception(_lastError);
@@ -142,6 +153,7 @@ class AIService extends ChangeNotifier {
       _lastError = 'Unexpected error in generateColoringBookImage: $e';
       LOG.ERROR(_lastError);
       _loading = false;
+      _awaitingImageDescription = false;
       notifyListeners();
       return null;
     }
